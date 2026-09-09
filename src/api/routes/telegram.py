@@ -1,6 +1,7 @@
+import asyncio
 import time
 import logging
-from fastapi import APIRouter, Request, Depends, BackgroundTasks
+from fastapi import APIRouter, BackgroundTasks
 from src.schemas.telegram import TelegramUpdate, TelegramWebhookResponse
 from src.services.agent_service import AgentService
 from src.services.telegram_service import TelegramService
@@ -136,6 +137,20 @@ async def get_bot_info():
         return {"status": "error", "message": str(e)}
 
 
+async def keep_typing_loop(chat_id: int):
+    """
+    A background process that sends the “typing” status to Telegram every 4 seconds,
+    while the agent is working on a reply.
+    """
+    try:
+        while True:
+            if telegram_service:
+                await telegram_service.send_chat_action(chat_id, "typing")
+            await asyncio.sleep(4.0)
+    except asyncio.CancelledError:
+        pass
+
+
 async def process_telegram_message(
     user_id: int,
     chat_id: int,
@@ -144,6 +159,9 @@ async def process_telegram_message(
 ):
     t_start = time.perf_counter()
     logger.info(f"⏱️ [START] Processing update_id: {update_id} for user_id: {user_id}")
+
+    
+    typing_task = asyncio.create_task(keep_typing_loop(chat_id))
 
     try:
         if not agent_service:
@@ -155,14 +173,14 @@ async def process_telegram_message(
                 )
             return
 
-        # 1. Запит до БД: створення/перевірка користувача (сесія закривається одразу)
+        
         t_db_start = time.perf_counter()
         async with get_async_session() as session:
             repo = UserRepository(session)
             await repo.get_or_create_user(user_id)
         logger.info(f"⏱️ [DB USER CHECK] Took: {time.perf_counter() - t_db_start:.3f} sec")
 
-        # 2. Виклик LLM Агента (БД не задіяна)
+        
         t_agent_start = time.perf_counter()
         agent_response = await agent_service.process_message(
             user_id=user_id,
@@ -170,14 +188,14 @@ async def process_telegram_message(
         )
         logger.info(f"⏱️ [AGENT CORE EXECUTION] Took: {time.perf_counter() - t_agent_start:.3f} sec")
 
-        # 3. Запит до БД: оновлення останньої взаємодії
+        
         t_db_update = time.perf_counter()
         async with get_async_session() as session:
             repo = UserRepository(session)
             await repo.update_last_interaction(user_id)
         logger.info(f"⏱️ [DB UPDATE INTERACTION] Took: {time.perf_counter() - t_db_update:.3f} sec")
 
-        # 4. Відправка відповіді
+        
         t_send_start = time.perf_counter()
         await telegram_service.send_message(
             chat_id=chat_id,
@@ -202,5 +220,7 @@ async def process_telegram_message(
             except Exception as send_err:
                 logger.error(f"Failed to send error notification: {send_err}")
     finally:
+        
+        typing_task.cancel()
         t_total = time.perf_counter() - t_start
         logger.info(f"🏁 [TOTAL TIME] Update {update_id} processed in {t_total:.3f} sec")

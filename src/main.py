@@ -4,11 +4,11 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 import logging
 
-# 1. Глобальне налаштування логування (додай це НА ПОЧАТКУ файлу)
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s | %(levelname)-8s | %(name)s | %(message)s",
-    force=True  # Перезаписує дефолтний handler FastApi/Uvicorn
+    force=True  
 )
 
 logger = logging.getLogger(__name__)
@@ -50,18 +50,18 @@ async def lifespan(app: FastAPI):
     logger.info("✅ Application started")
     yield
     
-    # Shutdown
+    
     logger.info("🛑 Application shutting down...")
 
 
-# Create app
+
 app = FastAPI(
     title="Enterprise Telegram Agent",
     version=settings.version,
     lifespan=lifespan
 )
 
-# Include routers
+
 app.include_router(telegram_routes.router)
 
 # Health endpoints

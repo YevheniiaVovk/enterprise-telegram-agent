@@ -22,7 +22,7 @@ class AgentService:
             self.checkpointer = get_checkpointer()
 
             logger.info("Initializing agent...")
-            # Передаємо чекпоінтер в агент:
+         
             self.agent = create_telegram_agent(checkpointer=self.checkpointer)
 
             logger.info("✅ Agent service initialized successfully")
@@ -54,7 +54,7 @@ class AgentService:
                 }
             }
 
-            # Виклик LangGraph / LLM
+            
             t_llm_start = time.perf_counter()
             response = await self.agent.ainvoke(
                 agent_input,
@@ -62,7 +62,7 @@ class AgentService:
             )
             logger.info(f"⏱️ [LANGGRAPH AINVOKE] Execution took: {time.perf_counter() - t_llm_start:.3f} sec")
 
-            # Парсинг відповіді
+            
             t_ext_start = time.perf_counter()
             agent_response = self._extract_response(response)
             logger.info(f"⏱️ [EXTRACT RESPONSE] Extraction took: {time.perf_counter() - t_ext_start:.3f} sec")

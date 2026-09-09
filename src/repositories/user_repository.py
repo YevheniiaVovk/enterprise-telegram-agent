@@ -1,5 +1,5 @@
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from src.database.models import User
@@ -93,7 +93,7 @@ class UserRepository:
         if user:
             return user
         
-        # Create new user with thread_id same as user_id
+       
         thread_id = str(user_id)
         return await self.create_user(user_id, thread_id)
     
@@ -114,7 +114,7 @@ class UserRepository:
                 logger.warning(f"User {user_id} not found for update")
                 return False
             
-            user.last_interaction = datetime.utcnow()
+            user.last_interaction = datetime.now(timezone.utc).replace(tzinfo=None)
             self.session.add(user)
             await self.session.commit()
             

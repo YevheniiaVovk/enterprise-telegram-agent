@@ -1,6 +1,7 @@
+import asyncio  # 👈 обов'язковий імпорт
 import logging
 from typing import Optional
-from ddgs import DDGS  # Виправлено імпорт (пакет ddgs замість duckduckgo_search)
+from ddgs import DDGS
 from langchain.tools import tool
 import requests
 
@@ -8,33 +9,27 @@ logger = logging.getLogger(__name__)
 
 
 @tool
-def web_search(query: str) -> str:
-    """
-    Search the internet for current events, news, recent facts, or real-time information.
-    Use this tool when the user asks about recent events, latest news, celebrities, or facts not in your knowledge base.
-
-    Args:
-        query: Search query string
-
-    Returns:
-        Search results from the web including titles, snippets, and URLs.
-    """
+async def web_search(query: str) -> str:
+    """Search the internet for current events, news, recent facts, or real-time information."""
     try:
+        def _search():
+            with DDGS() as ddgs:
+                
+                return list(ddgs.text(query, region="ua-uk", max_results=5))
+
+        
+        search_results = await asyncio.wait_for(
+            asyncio.to_thread(_search),
+            timeout=10.0
+        )
+        
         results = []
-        with DDGS() as ddgs:
-            # Отримуємо до 5 результатів
-            search_results = list(ddgs.text(query, max_results=5))
-            
-            for r in search_results:
-                title = r.get("title", "No Title")
-                snippet = r.get("body", "No Description")
-                url = r.get("href", "")
-                if url:
-                    results.append(
-                        f"Title: {title}\n"
-                        f"Snippet: {snippet}\n"
-                        f"URL: {url}"
-                    )
+        for r in search_results:
+            title = r.get("title", "No Title")
+            snippet = r.get("body", "No Description")
+            url = r.get("href", "")
+            if url:
+                results.append(f"Title: {title}\nSnippet: {snippet}\nURL: {url}")
 
         if not results:
             logger.warning(f"⚠️ [WEB SEARCH] No results found for query: {query}")
@@ -43,6 +38,9 @@ def web_search(query: str) -> str:
         logger.info(f"✅ [WEB SEARCH] Found {len(results)} results for query: {query}")
         return "\n\n---\n\n".join(results)
 
+    except asyncio.TimeoutError:
+        logger.error(f"❌ [WEB SEARCH TIMEOUT]: Query '{query}' took too long.")
+        return "Search error: DuckDuckGo response timed out."
     except Exception as e:
         logger.error(f"❌ [WEB SEARCH ERROR]: {e}")
         return f"Error performing web search: {str(e)}"
